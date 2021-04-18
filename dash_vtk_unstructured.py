@@ -236,7 +236,7 @@ def add_dash(app):
         if trig_id == f'{APP_ID}_elems_upload' and node_contents is None:
             raise PreventUpdate
 
-        # scenario 3: data for both mesh, but no results
+        # scenario 5: data for both mesh, but no results
         if all([node_contents is not None, elem_contents is not None, is_cleared[0], elem_data_contents is None]):
             uGrid, _ = ns_export_to_uGrid(node_contents, elem_contents)
 
@@ -254,7 +254,7 @@ def add_dash(app):
                 dash.no_update,
             ]
 
-        # scenario 4: data for the whole shebang
+        # scenario 6: data for the whole shebang
         if all([node_contents is not None, elem_contents is not None, elem_data_contents is not None]):
             uGrid, rng = ns_export_to_uGrid(node_contents, elem_contents, elem_data_contents)
 
