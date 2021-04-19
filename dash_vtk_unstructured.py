@@ -289,7 +289,6 @@ def add_dash(app):
                     # this is the threshold solid elements within the range slider values
                     dash_vtk.GeometryRepresentation(
                         [
-                            dash_vtk.VolumeController(),
                             dash_vtk.Mesh(state=mesh_state2)
                         ],
                         property={"edgeVisibility": show_edges, "opacity": 1},
