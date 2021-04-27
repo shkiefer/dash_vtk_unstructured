@@ -35,12 +35,14 @@ def ns_export_to_uGrid(n_ns_b64, e_ns_b64, e_data_b64=None):
     df_nodes = df_nodes.reindex(np.arange(df_nodes.index.min(), df_nodes.index.max() + 1), fill_value=0)
 
     df_elems = pd.read_csv(io.StringIO(decoded_e.decode('utf-8')), skiprows=1, header=None, delim_whitespace=True, engine='python', index_col=None).sort_values(0)
-    # order: 0: eid, 1: eshape, 2+: nodes
+    # order: 0: eid, 1: eshape, 2+: nodes, iloc[:,0] is index
     df_elems.iloc[:, 0] = df_elems.iloc[:, 0].astype(int)
+
     n_nodes = df_elems.iloc[:, 1].map(lambda x: int(''.join(i for i in x if i.isdigit())))
     df_elems.insert(2, 'n_nodes', n_nodes)
     # fill missing ids in range as VTK uses position (index) to map data to cells
-    df_elems = df_elems.set_index(0).reindex(np.arange(df_elems.iloc[:, 0].min(), df_elems.iloc[:, 0].max() + 1), fill_value=0)
+    new_range = np.arange(df_elems.iloc[:, 0].min(), df_elems.iloc[:, 0].max() + 1)
+    df_elems = df_elems.set_index(0, drop=False).reindex(new_range, fill_value=0)
 
     # mapping specific to Ansys Mechanical data
     vtk_shape_id_map = {
@@ -54,17 +56,18 @@ def ns_export_to_uGrid(n_ns_b64, e_ns_b64, e_data_b64=None):
         'Quad4': vtk.VTK_QUAD,
         'Wed15': vtk.VTK_QUADRATIC_WEDGE
     }
-    df_elems['cell_types'] = df_elems.iloc[:, 0].map(lambda x: vtk_shape_id_map[x.strip()] if x.strip() in vtk_shape_id_map.keys() else np.nan)
+    df_elems['cell_types'] = np.nan
+    df_elems.loc[df_elems.loc[:, 0] > 0, 'cell_types'] = df_elems.loc[df_elems.loc[:, 0] > 0, 1].map(lambda x: vtk_shape_id_map[x.strip()] if x.strip() in vtk_shape_id_map.keys() else np.nan)
     df_elems = df_elems.dropna(subset=['cell_types'], axis=0)
+
     # convert dataframes to vtk-desired format
     points = df_nodes[['x', 'y', 'z']].to_numpy()
     cell_types = df_elems['cell_types'].to_numpy()
-    n_nodes = df_elems.iloc[:, 1].to_numpy()
+    n_nodes = df_elems.loc[:, 'n_nodes'].to_numpy()
     # subtract starting node id from all grid references in cells to avoid filling from 0 to first used node (in case mesh doesnt start at 1)
-    p = df_elems.iloc[:, 2:-1].to_numpy() - df_nodes.index.min()
+    p = df_elems.iloc[:, 3:-1].to_numpy() - df_nodes.index.min()
     # if you need to, re-order nodes here-ish
     a = np.hstack((n_nodes.reshape((len(n_nodes), 1)), p))
-
     # convert to flat numpy array
     cells = a.ravel()
     # remove nans (due to elements with different no. of nodes)
@@ -72,7 +75,6 @@ def ns_export_to_uGrid(n_ns_b64, e_ns_b64, e_data_b64=None):
     cells = cells.astype(int)
     # create grid
     grid = pv.UnstructuredGrid(cells, cell_types, points)
-
     if e_data_b64:
         decoded_ed = base64.b64decode(e_data_b64.split(',')[1])
         df_elem_data = pd.read_csv(
@@ -93,6 +95,7 @@ def ns_export_to_uGrid(n_ns_b64, e_ns_b64, e_data_b64=None):
     else:
         rng = [0., 1.]
 
+    print('returning uGrid')
     return grid, rng
 
 
@@ -247,7 +250,7 @@ def add_dash(app):
                     [
                         dash_vtk.Mesh(state=mesh_state)
                     ],
-                    property={"edgeVisibility": True, "opacity": 0.25, 'representation': 2}
+                    property={"edgeVisibility": False, "opacity": 0.25, 'representation': 2}
                 ),
                 [False],
                 dash.no_update,
